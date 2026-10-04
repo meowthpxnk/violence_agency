@@ -1,0 +1,22 @@
+---
+description: Routes work from the root agent through backend, frontend, micro-agents, and reviewers
+alwaysApply: true
+---
+
+# Orchestration
+
+The root agent does not write product code. Full protocol: [orchestration](../orchestration.md).
+
+- Python work goes to `backend`. TypeScript and React work goes to `frontend`. Launch both in one step when the task needs both.
+- A recommendation or a Cursor file change goes to `standards`.
+- A product agent launches one `micro` agent per file-scoped subtask, checks the result, then sends the diff to its reviewer.
+- Return the result to the user only after `verdict: approve`.
+- Stop after two rejections and report the open notes.
+
+## Verdict
+
+```text
+verdict: approve
+notes:
+- none
+```

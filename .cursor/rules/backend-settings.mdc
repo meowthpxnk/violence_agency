@@ -1,0 +1,76 @@
+---
+description: YAML readers and Settings blocks that collect every validation error
+globs: "**/*.py"
+alwaysApply: false
+---
+
+Follow [settings](../recommendations/backend/settings.md).
+
+## app/utils/files.py
+
+```python
+def read_file(path: str) -> str:
+    with open(path, encoding="utf-8") as file:
+        return file.read()
+
+
+def read_yaml(path: str) -> dict:
+    return yaml.safe_load(read_file(path))
+
+
+def read_yaml_model[TModel](path: str, model: type[TModel]) -> TModel:
+    data = yaml.safe_load(read_file(path))
+    return model.model_validate(data)
+```
+
+## prepare_settings_errors_message
+
+```python
+def prepare_settings_errors_message(errors: list[ErrorDetails]) -> str:
+    def prepare_single(error: ErrorDetails) -> str:
+        messages = []
+        messages.append(
+            f"- {'.'.join(map(str, error['loc']))}:",
+        )
+        if error["type"] != "missing":
+            messages.append(
+                f"Input - {error['input']}",
+            )
+        messages.append(
+            f"Error - {error['msg']}",
+        )
+        return " | ".join(messages)
+
+    return "Settings initialisation error:\n" + "\n".join(
+        [prepare_single(e) for e in errors]
+    )
+```
+
+## Settings root
+
+```python
+class DatabaseSettings(BaseSettings):
+    uri: PostgresDsn = Field(alias="DATABASE_URI")
+
+class LoggingSettings(BaseSettings):
+    config_path: str = Field(
+        "config/logging.yaml",
+        alias="LOGGING_CONFIG_PATH",
+    )
+
+class Settings:
+    database: DatabaseSettings
+    logging: LoggingSettings
+
+    def __init__(self):
+        errors: list[ErrorDetails] = []
+
+        for name, cls in self.__annotations__.items():
+            try:
+                setattr(self, name, cls())
+            except ValidationError as err:
+                [errors.append(e) for e in err.errors()]
+
+        if errors:
+            raise RuntimeError(prepare_settings_errors_message(errors))
+```

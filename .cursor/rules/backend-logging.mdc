@@ -1,0 +1,228 @@
+---
+description: YAML logging config, BaseFormatter, and ColorisedFormatter
+globs: "**/*.py"
+alwaysApply: false
+---
+
+Follow [logging](../recommendations/backend/logging.md).
+
+## Load dictConfig
+
+```python
+import logging
+import logging.config
+
+from app.core import settings
+from app.utils import read_yaml
+
+LOGGING_CONFIG = read_yaml(settings.logging.config_path)
+logging.config.dictConfig(LOGGING_CONFIG)
+```
+
+## config/logging.yaml
+
+```yaml
+version: 1
+disable_existing_loggers: False
+
+formatters:
+    simple:
+        (): app.logging.formatters.BaseFormatter
+        settings:
+            module: True
+
+    colorized:
+        (): app.logging.formatters.ColorisedFormatter
+        settings:
+            module: True
+            log_path: True
+
+    colorized.module:
+        (): app.logging.formatters.ColorisedFormatter
+        settings:
+            module: True
+
+handlers:
+    console:
+        class: logging.StreamHandler
+        level: DEBUG
+        formatter: colorized
+        stream: ext://sys.stdout
+
+    console.module:
+        class: logging.StreamHandler
+        level: DEBUG
+        formatter: colorized.module
+        stream: ext://sys.stdout
+
+    file:
+        class: logging.FileHandler
+        level: INFO
+        formatter: simple
+        filename: LOGGING.LOG
+
+loggers:
+    uvicorn:
+        level: INFO
+        handlers: [console.module, file]
+
+    alembic:
+        level: INFO
+        handlers: [console.module, file]
+
+    app:
+        level: INFO
+        handlers: [console, file]
+
+    app.api:
+        level: ERROR
+```
+
+## Formatter exports
+
+```python
+from .base import BaseFormatter, FormatterSettings
+from .colorised import ColorisedFormatter
+```
+
+## BaseFormatter
+
+```python
+import logging
+import os
+import time
+from dataclasses import dataclass
+
+
+@dataclass
+class FormatterSettings:
+    datetime: bool = True
+    module: bool = False
+    log_path: bool = False
+
+
+BASE_FORMATTER_SETTINGS = FormatterSettings()
+
+_levelToName = {
+    logging.CRITICAL: "FATAL",
+    logging.ERROR: "ERROR",
+    logging.WARNING: "WARN",
+    logging.INFO: "INFO",
+    logging.DEBUG: "DEBUG",
+    logging.NOTSET: "NOTSET",
+}
+
+
+class BaseFormatter(logging.Formatter):
+    LEVELNO_MAP = _levelToName
+
+    def __init__(
+        self, settings: FormatterSettings | dict = BASE_FORMATTER_SETTINGS
+    ):
+        if not isinstance(settings, FormatterSettings | dict):
+            raise ValueError(
+                "Formatter settings must be dict or FormatterSettings"
+            )
+
+        if isinstance(settings, dict):
+            settings = FormatterSettings(**settings)
+
+        self.settings = settings
+
+    def format(self, record: logging.LogRecord) -> str:
+        data = []
+        message = record.getMessage()
+
+        if self.settings.datetime:
+            data.append(f"[{self._datetime_str(record.created)}]")
+
+        data.append(f"{self._level_to_name(record.levelno)}")
+
+        if self.settings.module:
+            data.append(f"[{record.name}]")
+
+        if self.settings.log_path:
+            log_path = self._log_path_str(record.pathname, record.lineno)
+            data.append(log_path)
+
+        return " ".join(data) + f": {message}"
+
+    @classmethod
+    def _log_path_data_str(cls, data: str) -> str:
+        return data
+
+    @classmethod
+    def _log_path_str(cls, pathname: str, line: str) -> str:
+        filename = cls._pathname_str(pathname)
+        line = cls._line_str(line)
+        return f"in {filename} line {line}"
+
+    @classmethod
+    def _pathname_str(cls, pathname: str) -> str:
+        pathname = pathname.replace(os.path.abspath(""), ".")
+        return cls._log_path_data_str(pathname)
+
+    @classmethod
+    def _line_str(cls, line: str) -> str:
+        return cls._log_path_data_str(str(line))
+
+    @classmethod
+    def _level_to_name(cls, levelno: int) -> str:
+        try:
+            levelname = cls.LEVELNO_MAP[levelno]
+        except KeyError:
+            levelname = f"UNKNOWN LEVELNO - {levelno}"
+        return f"{levelname}"
+
+    @classmethod
+    def _datetime_str(self, created: float) -> str:
+        return time.strftime(self.default_time_format, self.converter(created))
+```
+
+## ColorisedFormatter
+
+```python
+import logging
+
+import colorama
+
+from . import BaseFormatter
+
+_levelToName_COLORISED = {
+    logging.INFO: f"{colorama.Fore.GREEN}INFO{colorama.Fore.RESET}",
+    logging.ERROR: f"{colorama.Fore.RED}ERROR{colorama.Fore.RESET}",
+    logging.WARN: f"{colorama.Fore.YELLOW}WARN{colorama.Fore.RESET}",
+    logging.DEBUG: f"{colorama.Fore.LIGHTBLACK_EX}DEBUG{colorama.Fore.RESET}",
+    logging.FATAL: f"{colorama.Back.RED}FATAL{colorama.Back.RESET}",
+}
+
+
+class ColorisedFormatter(BaseFormatter):
+    LEVELNO_MAP = _levelToName_COLORISED
+
+    @classmethod
+    def _level_to_name(cls, levelno: int) -> str:
+        levelname = super()._level_to_name(levelno)
+        return f"{levelname}"
+
+    @classmethod
+    def _datetime_str(cls, created: float) -> str:
+        dt = super()._datetime_str(created)
+        return f"{colorama.Style.DIM}{dt}{colorama.Style.NORMAL}"
+
+    @classmethod
+    def _log_path_data_str(cls, data: str) -> str:
+        data = super()._log_path_data_str(data)
+        return f"{colorama.Fore.LIGHTYELLOW_EX}{data}{colorama.Fore.RESET}"
+```
+
+## Call site
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+logger.info("Item created id=%s", item.id)
+logger.error("Integration failed", exc_info=True)
+```

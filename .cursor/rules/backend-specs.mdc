@@ -1,0 +1,24 @@
+---
+description: Dataclass specs that toggle filters and eager loads
+globs: "**/*.py"
+alwaysApply: false
+---
+
+Follow [specs](../recommendations/backend/specs.md).
+
+## UserSpec
+
+```python
+from dataclasses import dataclass
+
+
+@dataclass
+class UserSpec:
+    id: int | None = None
+    username: str | None = None
+
+    include_settings: bool = False
+    include_orders: bool = False
+    include_seller_card: bool = False
+    include_cart: bool = False
+```

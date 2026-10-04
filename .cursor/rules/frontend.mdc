@@ -1,0 +1,13 @@
+---
+description: Next.js FSD placement and a pointer to the full tree
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Frontend
+
+Follow the active files in [frontend](../recommendations/frontend/).
+
+Keep `app/` routes thin. Screens live in `src/fsd/pages`. Import downward only: app, pages, widgets, features, entities, shared. Parse external data with Zod.
+
+The directory tree and the route list are in [frontend-architecture.mdc](frontend-architecture.mdc).

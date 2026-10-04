@@ -1,0 +1,14 @@
+---
+description: Primary application stack; add a library only when this stack cannot do the job
+alwaysApply: true
+---
+
+# Stack
+
+Follow [stack.core](../recommendations/stack/core.md). Do not add a second framework.
+
+- Backend: Python 3.12, FastAPI, Poetry, SQLAlchemy 2, Alembic, PostgreSQL 15, Redis 7, MongoDB, MinIO, RabbitMQ, JWT RS256, Pydantic Settings.
+- Frontend: Next.js, React, TypeScript, Zod, Axios, TanStack Query, Sass, styled-components.
+- Run both with Docker. Production orchestration is Docker Swarm.
+
+Need a queue: use RabbitMQ. Do not add Celery or Kafka.

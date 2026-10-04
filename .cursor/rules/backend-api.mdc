@@ -1,0 +1,214 @@
+---
+description: FastAPI assembly, CORS, dependencies, and routers
+globs: "**/*.py"
+alwaysApply: false
+---
+
+Follow [api](../recommendations/backend/api.md).
+
+## prepare_request_exception
+
+```python
+import traceback
+
+from pydantic_core import ErrorDetails
+from starlette.types import Scope
+from uvicorn.protocols.utils import get_client_addr, get_path_with_query_string
+
+
+def prepare_request_exception(scope: Scope, error: Exception) -> str:
+    addr = get_client_addr(scope)
+    path = get_path_with_query_string(scope)
+    method = scope["method"]
+    version = scope["http_version"]
+    return (
+        f"{addr} - '{method} {path} {version}', reason: {error}\n"
+        f"Traceback: {traceback.format_exc()}"
+    )
+```
+
+## default_exception_handler
+
+```python
+async def default_exception_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
+    logger.error(prepare_request_exception(request.scope, exc))
+    return JSONResponse(
+        {"error": str(exc)},
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    )
+```
+
+## ApiSettings
+
+```python
+class ApiSettings(BaseSettings):
+    host: str = Field(
+        "localhost",
+        alias="API_HOST",
+    )
+    port: int = Field(
+        2000,
+        alias="API_PORT",
+    )
+    cors_path: str = Field(
+        "config/cors.yaml",
+        alias="API_CORS_PATH",
+    )
+```
+
+## CorsConfig
+
+```python
+class CorsConfig(BaseModel):
+    allow_origins: list[str]
+    allow_headers: list[str]
+    allow_methods: list[str]
+    allow_credentials: bool
+```
+
+## config/cors.yaml
+
+```yaml
+allow_origins:
+  - "http://localhost:3000"
+  - "http://localhost:3001"
+allow_headers:
+  - "*"
+allow_methods:
+  - "*"
+allow_credentials: True
+```
+
+## Api and ApiContext
+
+```python
+
+@dataclass
+class ApiContext:
+    database: SomeDB
+    additional_client: AdditionalClient
+
+class Api:
+    def __init__(
+        self, settings: ApiSettings, log_config: dict, ctx: ApiContext
+    ):
+        self.settings = settings
+        self.api = FastAPI(docs_url=None)
+        self.api.state.context = ctx
+
+        config = Config(
+            self.api,
+            settings.host,
+            settings.port,
+            log_config=log_config,
+        )
+        self.server = Server(config)
+
+        self._set_cors()
+        self._set_exception_handler()
+
+    def _set_cors(self) -> None:
+        cors_config = read_yaml_model(self.settings.cors_path, CorsConfig)
+        self.api.add_middleware(CORSMiddleware, **cors_config.model_dump())
+
+    def _set_exception_handler(self):
+        self.api.add_exception_handler(Exception, default_exception_handler)
+
+    def include_router(self, *args, **kwargs):
+        self.api.include_router(*args, **kwargs)
+```
+
+## Dependencies
+
+```python
+from typing import Annotated
+
+from fastapi import Depends, HTTPException, Request
+
+from .api import ApiContext
+
+
+async def get_api_context(request: Request):
+    return request.app.state.context
+
+
+ApiContextDepends = Annotated[
+    ApiContext,
+    Depends(get_api_context),
+]
+
+
+async def is_user_authorized(ctx: ApiContextDepends):
+    if not await ctx.some_client.is_user_authorized():
+        raise HTTPException(status_code=400, detail="User not authorized")
+
+
+UserAuthorisedDepends = Annotated[
+    None,
+    Depends(is_user_authorized),
+]
+```
+
+## Router aggregate
+
+```python
+from fastapi import APIRouter
+
+from . import test_routes, home_routes
+
+router = APIRouter()
+
+router.include_router(test_routes.router)
+router.include_router(home_routes.router)
+```
+
+## test routes
+
+```python
+from fastapi import APIRouter
+
+from app.api.dependencies import ApiContextDepends, UserAuthorisedDepends
+
+router = APIRouter()
+
+
+@router.get("/test")
+async def test(ctx: ApiContextDepends):
+    print(ctx.number)
+    return {"message": "Hello, World!"}
+
+
+@router.get("/test2")
+async def test2(user: UserAuthorisedDepends):
+    print(user)
+    return {"message": "Hello, World!"}
+```
+
+## home route
+
+```python
+from fastapi import APIRouter
+
+router = APIRouter()
+
+
+@router.get("/")
+async def home():
+    return {"message": "Hello, World!"}
+```
+
+## Wire the API in core
+
+```python
+from app.api import Api, ApiContext
+from app.api.routes import router
+
+from . import settings
+from .logging import LOGGING_CONFIG
+
+context = ApiContext(...)
+api = Api(settings.api, LOGGING_CONFIG, context)
+api.include_router(router)
+```

@@ -1,0 +1,37 @@
+---
+description: AppException is the base for known domain failures
+globs: "**/*.py"
+alwaysApply: false
+---
+
+Follow [exceptions](../recommendations/backend/exceptions.md).
+
+## AppException
+
+```python
+class AppException(Exception):
+    pass
+```
+
+## User errors
+
+```python
+
+
+class UserNotFoundError(AppException):
+    def __init__(self, username: str):
+        self.username = username
+        super().__init__(f"User {username} not found")
+
+
+class UserAlreadyExistsError(AppException):
+    def __init__(self, username: str):
+        self.username = username
+        super().__init__(f"User {username} already exists")
+
+
+class InvalidCredentialsError(AppException):
+    def __init__(self, username: str):
+        self.username = username
+        super().__init__(f"Invalid credentials for user {username}")
+```

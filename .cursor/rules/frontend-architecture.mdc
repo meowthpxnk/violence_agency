@@ -1,0 +1,113 @@
+---
+description: Sozvezdie Next.js tree, FSD layers, and routes
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+Follow [architecture](../recommendations/frontend/architecture.md).
+
+The storefront uses Next.js 16, React 19, and TypeScript. Interface code lives in `src/fsd`. A file in `app/` only mounts a page from `src/fsd/pages`.
+
+Layers: `app` (`@app`), `pages` (`@pages`), `widgets` (`@widgets`), `features` (`@features`), `entities` (`@entities`), empty `processes`, `shared` (`@shared`).
+
+Redux Toolkit stores the cart, favorites, and session. TanStack Query stores server data. Axios lives in `src/fsd/shared/api/interceptors.ts`. `src/shared` and `src/main_pages` are the older layer.
+
+Public routes: `/`, catalog, product, authors, cart, checkout, favorites, orders, profile, auth, faq, legal details. `/admin` is the author cabinet. `/moderation` covers catalog, orders, and users. `/super-admin` covers banners, catalog, faq, and users. `app/orders/[id]` is empty.
+
+Backend package layout for the same product:
+
+```text
+backend/
+├── app/
+│   ├── api/
+│   │   ├── dependencies/          # auth, database
+│   │   ├── routers/
+│   │   ├── api.py                 # сборка FastAPI, CORS, lifespan
+│   │   ├── auth_routing.py
+│   │   ├── exceptions.py
+│   │   └── order_errors.py
+│   ├── core/                      # database, redis, logging, settings, media
+│   ├── database/                  # base_model, session, mixins
+│   ├── exceptions/                # email, order, security
+│   ├── integrations/              # cdek, dadata, one_c, rusender, vk, yookassa
+│   ├── logging/formatters/
+│   ├── models/
+│   ├── repositories/
+│   │   └── specs/                 # cart, favourite, order, product, user
+│   ├── schemas/
+│   │   └── api/                   # config, delivery, integration_tasks, responses
+│   ├── services/
+│   ├── utils/
+│   ├── workers/
+│   │   └── integration_worker.py
+│   ├── constants.py
+│   ├── settings.py
+│   └── startup.py
+├── config/
+│   ├── cors.yaml
+│   └── logging.yaml
+├── database/
+│   ├── versions/                  # Alembic-миграции
+│   ├── env.py
+│   └── script.py.mako
+├── static/                        # docs.html, favicon.png
+├── docker-compose.yml
+├── Dockerfile
+├── entrypoint.sh
+├── pyproject.toml
+└── run.py
+```
+
+Frontend package layout:
+
+```text
+frontend/
+├── app/                           # маршруты Next.js App Router
+│   ├── admin/                     # кабинет автора
+│   ├── auth/
+│   ├── author/ и authors/
+│   ├── cart/
+│   ├── checkout/
+│   ├── faq/
+│   ├── favorites/
+│   ├── legal-details/
+│   ├── moderation/                # заявки, каталог, заказы, пользователи
+│   ├── orders/                    # список, архив, возврат с оплаты
+│   ├── product/[id]/
+│   ├── products/[categorySlug]/[subcategorySlug]/
+│   ├── profile/
+│   ├── reset-password/
+│   ├── super-admin/               # баннеры, каталог, FAQ, пользователи
+│   ├── verify-email/
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── providers.tsx
+│   ├── initializer.tsx
+│   ├── HomePageClient.tsx
+│   └── vk.ts
+├── public/
+│   ├── favicon.png
+│   └── socials/                   # telegram, tiktok, vk
+├── src/
+│   ├── fsd/
+│   │   ├── app/                   # пусто
+│   │   ├── entities/
+│   │   ├── features/
+│   │   ├── pages/
+│   │   ├── processes/             # пусто
+│   │   ├── shared/
+│   │   └── widgets/
+│   ├── main_pages/                # тонкие обёртки админ-экранов
+│   ├── providers/                 # react-query, toast
+│   ├── shared/                    # прежний shared: сервисы, моки, типы
+│   └── store/                     # пусто
+├── scripts/                       # пусто
+├── .cursor/rules/
+├── docker-compose.yml
+├── Dockerfile
+├── eslint.config.mjs
+├── next.config.ts
+├── package.json
+├── postcss.config.mjs
+└── tsconfig.json
+```

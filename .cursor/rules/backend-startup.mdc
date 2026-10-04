@@ -1,0 +1,68 @@
+---
+description: Process entry: run.py calls startup, which loads core clients
+globs: "**/*.py"
+alwaysApply: false
+---
+
+Follow [startup](../recommendations/backend/startup.md).
+
+## run.py
+
+```python
+from app.startup import startup
+
+if __name__ == "__main__":
+    try:
+        startup()
+    except KeyboardInterrupt:
+        print("Forced exit...")
+    except Exception as err:
+        print(err)
+```
+
+## app/startup.py
+
+```python
+from logging import getLogger
+
+from dotenv import load_dotenv
+
+logger = getLogger(__name__)
+
+
+def startup():
+    load_dotenv()
+    from app import core
+
+    logger.info("Startup application")
+    core.redis.ping()
+```
+
+## app/core/media_client.py
+
+```python
+from app.media_client import MediaClient
+from .settings import settings
+
+media_client = MediaClient(settings.minio.minio_uri)
+```
+
+## app/core/logging.py import side
+
+```python
+import logging
+import logging.config
+
+from app.core import settings
+from app.utils.files import read_yaml
+
+LOGGING_CONFIG = read_yaml(settings.logging.config_path)
+logging.config.dictConfig(LOGGING_CONFIG)
+```
+
+## app/core/__init__.py
+
+```python
+from .media_client import media_client
+import .logging
+```

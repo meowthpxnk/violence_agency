@@ -1,0 +1,53 @@
+---
+description: Section markers and docstrings; Russian comments are allowed
+globs: "**/*.{py,ts,tsx}"
+alwaysApply: false
+---
+
+# Comments
+
+Follow [language](../recommendations/comments/language.md), [sections](../recommendations/comments/sections.md), [docstrings](../recommendations/comments/docstrings.md), and [react](../recommendations/comments/react.md).
+
+Russian comments are allowed. Split a file that has more than one responsibility.
+
+## File and class markers
+
+```python
+# --> Data class
+class DotComData:
+    pass
+
+# --> Main class
+class DotCom:
+    # -> Class setup
+    def __init__(self) -> None:
+        pass
+
+    # -> Util funcs
+    @staticmethod
+    def calc_func(arg: int) -> int:
+        return arg
+```
+
+## Class and method text
+
+```python
+class DotCom:
+    """Usage dots for the dotcom website."""
+
+    def plus_sub(self, arg: int) -> int:
+        """Return the argument plus 4."""
+        arg += dotcom.main_argument  # Read the main argument from the util class
+        return arg + 4
+```
+
+## TypeScript markers
+
+```tsx
+// --> Product card
+export function ProductCard({ product }: ProductCardProps) {
+  // -> Price display
+  const priceLabel = formatPrice(product.price);
+  return <article>{priceLabel}</article>;
+}
+```

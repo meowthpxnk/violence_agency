@@ -1,0 +1,308 @@
+---
+description: Async SQLAlchemy base, mixins, Item model, and Alembic env
+globs: "**/*.py"
+alwaysApply: false
+---
+
+Follow [database](../recommendations/backend/database.md).
+
+The full Poetry file, including the Alembic tool table, is in [backend-tooling.mdc](backend-tooling.mdc).
+
+## Sample 1
+
+```python
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.settings import DatabaseSettings
+
+
+class Database:
+    def __init__(self, settings: DatabaseSettings):
+        self.engine = create_async_engine(str(settings.uri), future=True)
+        self.session = sessionmaker(
+            bind=self.engine, class_=AsyncSession, expire_on_commit=False
+        )
+
+    async def get_db(self) -> AsyncGenerator[AsyncSession, None]:
+        async with self.session() as session:
+            yield session
+```
+
+## Sample 2
+
+```python
+from sqlalchemy.orm import DeclarativeBase, declared_attr
+
+from app.utils.text import camel_to_snake
+from .mixins import ReprStrMixin
+
+
+class Base(DeclarativeBase, ReprStrMixin):
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}>"
+
+    @declared_attr
+    def __tablename__(cls) -> str:
+        return camel_to_snake(cls.__name__)
+```
+
+## Sample 3
+
+```toml
+# =============================================================================
+# 🛠️ alembic — Database Migrations
+# =============================================================================
+[tool.alembic]
+script_location = "database"  # Folder with migration scripts
+prepend_sys_path = "."        # Add project root to sys.path
+version_path_separator = "os" # Use OS-specific separator (e.g., '/' or '\')
+```
+
+## Sample 4
+
+```python
+import asyncio
+import logging
+import logging.config
+
+from alembic import context
+from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import create_async_engine
+
+from app import models
+from app.database import Base
+from app.settings import Settings
+from app.utils import read_yaml
+
+load_dotenv()
+settings = Settings()
+
+logging.config.dictConfig(read_yaml(settings.logging.config_path))
+config = context.config
+
+target_metadata = Base.metadata
+
+
+def run_migrations_offline() -> None:
+    """Run migrations in 'offline' mode."""
+    context.configure(
+        url=str(settings.database.uri),
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+async def run_migrations_online() -> None:
+    """Run migrations in 'online' mode using asyncpg."""
+    connectable = create_async_engine(
+        str(settings.database.uri), pool_pre_ping=True
+    )
+
+    async with connectable.begin() as connection:
+
+        def do_migrations(sync_connection):
+            context.configure(
+                connection=sync_connection,
+                target_metadata=target_metadata,
+                compare_type=True,  # Optional: compare column types
+            )
+            with context.begin_transaction():
+                context.run_migrations()
+
+        await connection.run_sync(do_migrations)
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    asyncio.run(run_migrations_online())
+```
+
+## Sample 5
+
+```python
+"""${message}
+
+Revision ID: ${up_revision}
+Revises: ${down_revision | comma,n}
+Create Date: ${create_date}
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+${imports if imports else ""}
+
+# revision identifiers, used by Alembic.
+revision: str = ${repr(up_revision)}
+down_revision: Union[str, None] = ${repr(down_revision)}
+branch_labels: Union[str, Sequence[str], None] = ${repr(branch_labels)}
+depends_on: Union[str, Sequence[str], None] = ${repr(depends_on)}
+
+
+def upgrade() -> None:
+    ${upgrades if upgrades else "pass"}
+
+
+def downgrade() -> None:
+    ${downgrades if downgrades else "pass"}
+
+```
+
+## Sample 6
+
+```python
+from sqlalchemy.orm import Mapped, mapped_column
+
+
+class WithIDMixin:
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+```
+
+## Sample 7
+
+```python
+from sqlalchemy import inspect
+
+
+class ReprStrMixin:
+    HIDDEN_FIELDS = {"password_hash"}
+
+    def _format(self) -> str:
+        try:
+            mapper = inspect(self.__class__)
+            columns = mapper.columns
+        except Exception:
+            return f"{self.__class__.__name__}"
+
+        pk_fields = []
+        fk_fields = []
+        other_fields = []
+
+        for col in columns:
+            name = col.key
+
+            if name in getattr(self, "HIDDEN_FIELDS", set()):
+                continue
+
+            value = getattr(self, name)
+
+            # форматирование строк
+            if isinstance(value, str):
+                value = f'"{value}"'
+
+            # определяем PK
+            is_pk = col.primary_key
+
+            # определяем FK
+            is_fk = len(col.foreign_keys) > 0
+
+            field = (name, value, is_pk, is_fk)
+
+            if is_pk:
+                pk_fields.append(field)
+            elif is_fk:
+                fk_fields.append(field)
+            else:
+                other_fields.append(field)
+
+        # алфавит внутри групп
+        pk_fields.sort(key=lambda x: x[0])
+        fk_fields.sort(key=lambda x: x[0])
+        other_fields.sort(key=lambda x: x[0])
+
+        def format_field(f):
+            name, value, is_pk, is_fk = f
+
+            tags = []
+            if is_pk:
+                tags.append("PK")
+            if is_fk:
+                tags.append("FK")
+
+            tag_str = f" [{'|'.join(tags)}]" if tags else ""
+
+            return f"{name}={value}{tag_str}"
+
+        parts = (
+            [format_field(f) for f in pk_fields]
+            + [format_field(f) for f in fk_fields]
+            + [format_field(f) for f in other_fields]
+        )
+
+        return f"<{self.__class__.__name__}: " + ", ".join(parts) + ">"
+
+    def __repr__(self) -> str:
+        return self._format()
+
+    def __str__(self) -> str:
+        return self._format()
+
+```
+
+## Sample 8
+
+```python
+from .item import Item
+from .brand import Brand
+from .category import Category
+```
+
+## Sample 9
+
+```python
+from datetime import datetime
+from typing import TYPE_CHECKING
+from sqlalchemy import Enum, String, ForeignKey, Text, Float, Integer, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
+from app.database.mixins import WithIDMixin
+
+
+if TYPE_CHECKING:
+    from app.models.brand import Brand
+    from app.models.category import Category
+
+
+class Item(Base, WithIDMixin):
+	# -> Fields
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text)
+    price: Mapped[float] = mapped_column(Float)
+    quantity: Mapped[int] = mapped_column(Integer)
+    
+    # -> Created
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now
+    )
+	
+	# -> Relaitons
+    brands: Mapped[list["Brand"]] = relationship(
+        "Brand", back_populates="item"
+    )
+    categories: Mapped[list["Category"]] = relationship(
+        "Category", back_populates="item"
+    )
+
+```
+
+## Sample 10
+
+```python
+if TYPE_CHECKING:
+    from app.models.brand import Brand
+    from app.models.category import Category
+```

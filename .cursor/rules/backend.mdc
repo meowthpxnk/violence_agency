@@ -1,0 +1,26 @@
+---
+description: Python backend layers, typing, and where the full samples live
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Backend
+
+Follow the active files in [backend](../recommendations/backend/).
+
+A request moves router, then service, then repository, then model. Annotate functions. Ruff line length is 79. Python is 3.12, installed with Poetry. A repository does not commit. Raise `AppException` subclasses for a known domain case.
+
+Full samples, not copies of each other:
+
+- [Startup and core clients](backend-startup.mdc)
+- [Settings and YAML](backend-settings.mdc)
+- [Logging](backend-logging.mdc)
+- [HTTP API](backend-api.mdc)
+- [Schemas](backend-schemas.mdc)
+- [Database and Alembic](backend-database.mdc)
+- [Query specs](backend-specs.mdc)
+- [Repository](backend-repository.mdc)
+- [Service](backend-service.mdc)
+- [Password hashing](backend-auth.mdc)
+- [Exceptions](backend-exceptions.mdc)
+- [pyproject.toml](backend-tooling.mdc)
