@@ -1,11 +1,9 @@
 # Orchestration
 
-The user talks to the root agent. The root agent launches specialists. A specialist may launch one more level of subagents. A micro-agent stops there.
+The user talks to the root agent. The root agent launches specialists. A specialist may launch its reviewer. It does not launch another implementation agent.
 
 ```text
-user -> root -> backend or frontend -> micro
-                     |                     |
-                     +--> reviewer <-------+
+user -> root -> backend or frontend -> reviewer-backend or reviewer-frontend
 root -> standards -> reviewer-standards
 ```
 
@@ -23,12 +21,11 @@ The root agent writes the whole task into the subagent prompt. Subagents do not 
 
 ## How product work moves
 
-1. `backend` or `frontend` splits the task by files. One `micro` agent gets one subtask.
-2. Two micro-agents do not edit the same file. Independent subtasks run in parallel.
-3. The parent checks the micro reports.
-4. The parent sends the combined diff to `reviewer-backend` or `reviewer-frontend`.
-5. `verdict: approve` goes back to the root agent, then to the user.
-6. `verdict: changes` gets one fix pass. A second rejection stops the loop. The root agent reports the open notes.
+1. The root agent launches `backend` and/or `frontend`. Launch both in one step when the task needs both.
+2. `backend` and `frontend` implement the task themselves. They do not launch a micro-agent, and they do not split the work into per-file micro subagents.
+3. The specialist sends the combined diff to `reviewer-backend` or `reviewer-frontend`.
+4. `verdict: approve` goes back to the root agent, then to the user.
+5. `verdict: changes` gets one fix pass. A second rejection stops the loop. The root agent reports the open notes.
 
 ## What each side may read
 
@@ -37,14 +34,6 @@ The root agent writes the whole task into the subagent prompt. Subagents do not 
 `frontend` and `reviewer-frontend` read scope `frontend` plus those same shared scopes.
 
 They skip `draft` files and the other side's scope. Code samples are in `.cursor/rules/`, not in the recommendation files.
-
-## Micro report
-
-```text
-files:
-summary:
-verify:
-```
 
 ## Reviewer verdict
 
